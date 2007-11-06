@@ -29,9 +29,9 @@ my_scheduler.drop(foo_receipt)
 tomorrow = datetime.datetime.now() + datetime.timedelta(days=1)
 tomorrow_at_930 = datetime.datetime.combine(tomorrow, datetime.time(9, 30))
 my_scheduler.schedule(name="bar", 
-                          start_time=tomorrow_at_930, 
-                                          calc_next_time=daily_at(datetime.time(9, 30)),
-                                          func=bar_function)
+                      start_time=tomorrow_at_930, 
+                      calc_next_time=daily_at(datetime.time(9, 30)),
+                      func=bar_function)
 
 # Stop the scheduler
 my_scheduler.halt()
