@@ -1,0 +1,3 @@
+#summary Here are some simple examples.
+
+= Examples =
