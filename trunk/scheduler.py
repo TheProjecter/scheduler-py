@@ -1,4 +1,4 @@
-import logging, random, operator, datetime
+import logging, random, operator, datetime, sys
 from threading import Thread, Event, Lock
 
 class Task(object):
@@ -44,8 +44,8 @@ class Scheduler(Thread):
         self.tasks_lock = Lock()
         self.halt_flag = Event()
         
-    def schedule(self, start_time, calc_next_time, gen_func):
-        task = Task(start_time, calc_next_time, gen_func)
+    def schedule(self, name, start_time, calc_next_time, func):
+        task = Task(name, start_time, calc_next_time, func)
         receipt = self.schedule_task(task)
         return receipt
     
@@ -69,39 +69,46 @@ class Scheduler(Thread):
         
     def halt(self):
         self.halt_flag.set()
-        map(Task.halt, self.tasks.iteritems())
+        #drop all active tasks
+        map(self.drop, self.tasks.keys())
+        #exit the thread to kill the scheduler
+        sys.exit()
         
     def __find_next_task(self):
         self.tasks_lock.acquire()
         items = self.tasks.items()
         by_time = lambda x: operator.getitem(x, 1).scheduled_time
         items.sort(key=by_time)
-        receipt = items[0][0]
+        try:
+            receipt = items[0][0]
+        except Exception, e:
+            receipt = None
         self.tasks_lock.release()
         return receipt
         
     def run(self):
         while 1:
             receipt = self.__find_next_task()
-            task_time = self.tasks[receipt].scheduled_time  
-            time_to_wait = task_time - datetime.datetime.now()
-            secs_to_wait = 0.
-            # Check if time to wait is in the future
-            if time_to_wait > datetime.timedelta():
-                secs_to_wait = time_to_wait.seconds
-                
-            logging.debug("Next task is %s in %s seconds" % (self.tasks[receipt].name, time_to_wait,))
-            self.halt_flag.wait(secs_to_wait)
-            try:
+            if receipt != None:
+                task_time = self.tasks[receipt].scheduled_time  
+                time_to_wait = task_time - datetime.datetime.now()
+                secs_to_wait = 0.
+                # Check if time to wait is in the future
+                if time_to_wait > datetime.timedelta():
+                    secs_to_wait = time_to_wait.seconds
+                logging.debug("Next task is %s in %s seconds" % (self.tasks[receipt].name, time_to_wait,))
+                self.halt_flag.wait(secs_to_wait)
                 try:
-                    self.tasks_lock.acquire()
-                    task = self.tasks[receipt]
-                    logging.debug("Running %s..." % (task.name,))
-                    task.run()
-                finally:
-                    self.tasks_lock.release()
-            except Exception, e:
-                logging.exception(e)
+                    try:
+                        self.tasks_lock.acquire()
+                        task = self.tasks[receipt]
+                        logging.debug("Running %s..." % (task.name,))
+                        task.run()
+                    finally:
+                        self.tasks_lock.release()
+                except Exception, e:
+                    logging.exception(e)
+                    logging.debug( self.tasks )
 
 def every_x_secs(x):
     """
@@ -151,3 +158,23 @@ class RunUntilSuccess(object):
             logging.info("Task %s was run successfully." % (self.func.__name__,))
         else:
             logging.error("Success was not achieved!")
+
+class RunOnce(object):
+    """
+    Provide control flow for a procedure.
+    Run procedure until it is stopped
+    """
+    def __init__(self, func, args=None):
+        self.func = func
+        self.args = args
+
+    def __call__(self):
+        try:
+            if self.args is None:
+                self.func()
+            else:
+                self.func(self.args)
+        except Exception, e:  # Some exception occurred, try again
+            logging.exception(e)
+            logging.error("Task failed: %s" % (e))
+    
