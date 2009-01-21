@@ -39,10 +39,12 @@ class Task(object):
 class Scheduler(Thread):
     def __init__(self):
         Thread.__init__(self)
-        
+        self.setDaemon(True)        
+
         self.tasks = {}
         self.tasks_lock = Lock()
         self.halt_flag = Event()
+        self.nonempty = Event()
         
     def schedule(self, name, start_time, calc_next_time, func):
         task = Task(name, start_time, calc_next_time, func)
@@ -54,6 +56,7 @@ class Scheduler(Thread):
         
         self.tasks_lock.acquire()
         self.tasks[receipt] = task
+        self.nonempty.set()
         self.tasks_lock.release()
         
         return receipt
@@ -63,6 +66,8 @@ class Scheduler(Thread):
         try:
             self.tasks[task_receipt].halt()
             del self.tasks[task_receipt]
+            if len(self.tasks)==0:
+              self.nonempty.clear()
         except KeyError:
             logging.error('Invalid task receipt: %s' % (task_receipt,))
         self.tasks_lock.release()
@@ -109,6 +114,8 @@ class Scheduler(Thread):
                 except Exception, e:
                     logging.exception(e)
                     logging.debug( self.tasks )
+            else:
+                self.nonempty.wait()
 
 def every_x_secs(x):
     """
