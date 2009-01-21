@@ -74,9 +74,9 @@ class Scheduler(Thread):
         
     def halt(self):
         self.halt_flag.set()
-        #drop all active tasks
+        # Drop all active tasks
         map(self.drop, self.tasks.keys())
-        #exit the thread to kill the scheduler
+        # Exit the thread to kill the scheduler
         sys.exit()
         
     def __find_next_task(self):
